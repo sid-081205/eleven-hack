@@ -1,65 +1,51 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Coins, Sparkles, Wand2, Crown, Star } from 'lucide-react'
-import MagicalBackground from './MagicalBackground'
-import FloatingElements from './FloatingElements'
+import { Coins, Play, Sparkles } from 'lucide-react'
+import ModernBackground from './ModernBackground'
 
 const HomePage = () => {
   const [coins, setCoins] = useState(1247)
+  const [isLoaded, setIsLoaded] = useState(false)
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        duration: 1,
-        staggerChildren: 0.2
-      }
-    }
-  }
-
-  const itemVariants = {
-    hidden: { y: 50, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: {
-        duration: 0.8,
-        ease: "easeOut"
-      }
-    }
-  }
+  useEffect(() => {
+    setIsLoaded(true)
+  }, [])
 
   const handlePlayGame = () => {
-    // Navigate to game page (placeholder for now)
     console.log('Navigate to game page')
   }
 
   return (
-    <div className="relative w-full h-screen overflow-hidden bg-gradient-to-br from-purple-900 via-indigo-900 to-black">
-      <MagicalBackground />
-      <FloatingElements />
+    <div className="relative w-full h-screen overflow-hidden bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <ModernBackground />
       
-      {/* Header with Coins */}
+      {/* Status Bar */}
       <motion.div
-        initial={{ y: -100, opacity: 0 }}
+        initial={{ y: -50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 1, delay: 0.5 }}
+        transition={{ duration: 0.6, delay: 0.2 }}
         className="absolute top-0 left-0 right-0 z-20 pt-12 px-6"
       >
         <div className="flex justify-between items-center">
-          <div className="flex items-center space-x-2">
-            <Crown className="w-6 h-6 text-yellow-400" />
-            <span className="text-white font-medium text-lg">Level 12</span>
-          </div>
+          {/* Level Indicator */}
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            className="glass-card px-4 py-2 rounded-2xl"
+          >
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-blue-400 rounded-full pulse-subtle"></div>
+              <span className="text-white/90 font-medium text-sm">Level 12</span>
+            </div>
+          </motion.div>
           
+          {/* Coins */}
           <motion.div
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="flex items-center space-x-2 bg-gradient-to-r from-yellow-400 to-yellow-600 px-4 py-2 rounded-full coin-shimmer"
+            className="coin-glow px-5 py-2.5 rounded-2xl flex items-center space-x-2"
           >
-            <Coins className="w-5 h-5 text-yellow-900" />
-            <span className="text-yellow-900 font-bold text-lg">
+            <Coins className="w-5 h-5 text-amber-900" />
+            <span className="text-amber-900 font-bold text-lg">
               {coins.toLocaleString()}
             </span>
           </motion.div>
@@ -67,51 +53,43 @@ const HomePage = () => {
       </motion.div>
 
       {/* Main Content */}
-      <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="flex flex-col items-center justify-center h-full px-6 relative z-10"
-      >
-        {/* Game Title */}
+      <div className="flex flex-col items-center justify-center h-full px-6 relative z-10">
+        
+        {/* Game Logo */}
         <motion.div
-          variants={itemVariants}
-          className="text-center mb-12"
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.8, delay: 0.4 }}
+          className="text-center mb-16"
         >
           <motion.h1
-            className="magical-text text-6xl md:text-7xl font-bold mb-4 tracking-wider"
+            className="modern-text text-7xl md:text-8xl text-white mb-4 tracking-tight"
             animate={{ 
               textShadow: [
-                "0 0 30px rgba(255, 215, 0, 0.3)",
-                "0 0 50px rgba(255, 215, 0, 0.6)",
-                "0 0 30px rgba(255, 215, 0, 0.3)"
+                "0 0 30px rgba(255, 255, 255, 0.1)",
+                "0 0 50px rgba(255, 255, 255, 0.2)",
+                "0 0 30px rgba(255, 255, 255, 0.1)"
               ]
             }}
-            transition={{ duration: 3, repeat: Infinity }}
+            transition={{ duration: 4, repeat: Infinity }}
           >
             WIZARDS
           </motion.h1>
+          
           <motion.div
-            className="flex items-center justify-center space-x-4 mb-2"
-            animate={{ rotate: [0, 5, -5, 0] }}
-            transition={{ duration: 4, repeat: Infinity }}
+            className="flex items-center justify-center mb-4"
+            initial={{ width: 0 }}
+            animate={{ width: "120px" }}
+            transition={{ duration: 0.8, delay: 0.8 }}
           >
-            <Sparkles className="w-8 h-8 text-purple-400 sparkle-animation" />
-            <span className="text-purple-300 text-2xl font-light tracking-[0.3em]">
-              &
-            </span>
-            <Sparkles className="w-8 h-8 text-purple-400 sparkle-animation" />
+            <div className="h-px bg-gradient-to-r from-transparent via-white/40 to-transparent w-full"></div>
           </motion.div>
+          
           <motion.h2
-            className="magical-text text-6xl md:text-7xl font-bold tracking-wider"
-            animate={{ 
-              textShadow: [
-                "0 0 30px rgba(255, 215, 0, 0.3)",
-                "0 0 50px rgba(255, 215, 0, 0.6)",
-                "0 0 30px rgba(255, 215, 0, 0.3)"
-              ]
-            }}
-            transition={{ duration: 3, repeat: Infinity, delay: 1.5 }}
+            className="modern-text text-7xl md:text-8xl text-white tracking-tight"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.8, delay: 1 }}
           >
             WITCHES
           </motion.h2>
@@ -119,62 +97,77 @@ const HomePage = () => {
 
         {/* Subtitle */}
         <motion.p
-          variants={itemVariants}
-          className="text-purple-200 text-xl md:text-2xl text-center mb-16 max-w-md leading-relaxed"
+          initial={{ y: 30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 1.2 }}
+          className="text-white/70 text-lg md:text-xl text-center mb-16 max-w-sm font-light leading-relaxed"
         >
-          Enter a world of magic and mystery where spells come alive
+          Master the arcane arts in this mystical adventure
         </motion.p>
 
         {/* Play Button */}
         <motion.button
-          variants={itemVariants}
+          initial={{ y: 50, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 1.4 }}
           onClick={handlePlayGame}
-          whileHover={{ 
-            scale: 1.05,
-            boxShadow: "0 0 40px rgba(138, 43, 226, 0.8)"
-          }}
-          whileTap={{ scale: 0.95 }}
-          className="group relative px-12 py-6 bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-700 rounded-2xl mystical-glow transition-all duration-300"
+          className="play-button group relative px-12 py-5 rounded-2xl overflow-hidden"
         >
-          <div className="flex items-center space-x-3">
-            <motion.div
-              animate={{ rotate: [0, 15, -15, 0] }}
-              transition={{ duration: 2, repeat: Infinity }}
-            >
-              <Wand2 className="w-6 h-6 text-white" />
-            </motion.div>
+          <div className="flex items-center space-x-3 relative z-10">
+            <Play className="w-6 h-6 text-white fill-white" />
             <span className="text-white text-xl font-semibold tracking-wide">
-              CAST SPELLS
+              Play Game
             </span>
-            <motion.div
-              animate={{ rotate: [0, -15, 15, 0] }}
-              transition={{ duration: 2, repeat: Infinity, delay: 1 }}
-            >
-              <Star className="w-6 h-6 text-yellow-400" />
-            </motion.div>
           </div>
           
-          {/* Button glow effect */}
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-purple-400 to-indigo-400 opacity-0 group-hover:opacity-20 transition-opacity duration-300" />
+          {/* Button shine effect */}
+          <motion.div
+            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12"
+            initial={{ x: "-100%" }}
+            whileHover={{ x: "100%" }}
+            transition={{ duration: 0.6 }}
+          />
         </motion.button>
 
-        {/* Additional UI Elements */}
+        {/* Status Indicator */}
         <motion.div
-          variants={itemVariants}
-          className="absolute bottom-8 left-1/2 transform -translate-x-1/2"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 1.8 }}
+          className="absolute bottom-12 left-1/2 transform -translate-x-1/2"
         >
-          <motion.div
-            animate={{ y: [0, -10, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="text-purple-300 text-sm text-center"
-          >
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-              <span>Ready to play</span>
-            </div>
-          </motion.div>
+          <div className="flex items-center space-x-3 glass-card px-4 py-3 rounded-full">
+            <div className="status-indicator w-2 h-2 rounded-full"></div>
+            <span className="text-white/80 text-sm font-medium">Ready to play</span>
+          </div>
         </motion.div>
-      </motion.div>
+      </div>
+
+      {/* Floating Sparkles */}
+      <div className="absolute inset-0 pointer-events-none">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <motion.div
+            key={i}
+            className="absolute"
+            style={{
+              left: `${20 + (i * 12)}%`,
+              top: `${30 + (i * 8)}%`,
+            }}
+            animate={{
+              y: [0, -20, 0],
+              opacity: [0.3, 0.8, 0.3],
+              scale: [1, 1.2, 1]
+            }}
+            transition={{
+              duration: 3 + i * 0.5,
+              repeat: Infinity,
+              delay: i * 0.8
+            }}
+          >
+            <Sparkles className="w-4 h-4 text-white/40" />
+          </motion.div>
+        ))}
+      </div>
     </div>
   )
 }
