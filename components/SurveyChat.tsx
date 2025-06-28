@@ -104,12 +104,11 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
   }, [messages]);
 
   const getApiUrl = () => {
-    // For web platform, use localhost
     if (Platform.OS === 'web') {
       return 'http://localhost:3000';
     }
-    // For mobile, you might need your computer's IP address
-    return 'http://localhost:3000';
+    // For mobile, use your Mac's IP address so your phone can reach the server
+    return '10.234.135.130'; // <-- Replace with your actual Mac IP if different
   };
 
   const checkServerConnection = async () => {
