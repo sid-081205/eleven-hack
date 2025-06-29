@@ -117,7 +117,7 @@ app.post('/api/v1/survey/request', async (req, res) => {
             character: {
                 name: "Louis",
                 voice_id: VOICE_ID,
-                greeting: "Hey! To get more coins, all you have to do is answer a few questions honestly and carefully. Are you in?"
+                greeting: "Hey there! 👋 I'm Louis, your AI survey assistant! I'm here to ask you a few basic questions and I'd really love to get your honest answers. It's super quick and you'll earn some awesome coins! Are you ready to help me out?"
             },
             reward: {
                 type: rewardType,

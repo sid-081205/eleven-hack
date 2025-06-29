@@ -10,7 +10,7 @@ import {
   Dimensions,
   Platform 
 } from 'react-native';
-import { X, MessageCircle, Volume2, VolumeX } from 'lucide-react-native';
+import { X, Volume2, VolumeX } from 'lucide-react-native';
 
 interface SurveyChatProps {
   visible: boolean;
@@ -46,6 +46,9 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   const [serverConnected, setServerConnected] = useState(false);
+  const [chatVisible, setChatVisible] = useState(false);
+  const [surveyCompleted, setSurveyCompleted] = useState(false);
+  const [completionAudio, setCompletionAudio] = useState<HTMLAudioElement | null>(null);
   
   const slideAnim = useRef(new Animated.Value(screenHeight)).current;
   const louisTravelAnim = useRef(new Animated.Value(0)).current;
@@ -56,28 +59,30 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
     if (visible) {
       checkServerConnection();
       startSurvey();
-      // Animate modal slide up
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        })
-      ]).start();
       
-      // Animate Louis traveling to chat position
-      setTimeout(() => {
-        Animated.timing(louisTravelAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        }).start();
-      }, 600);
+      // Start Louis traveling animation first
+      Animated.timing(louisTravelAnim, {
+        toValue: 1,
+        duration: 2000,
+        useNativeDriver: true,
+      }).start(() => {
+        // Only show chat after Louis reaches the final position
+        setChatVisible(true);
+        
+        // Animate modal slide up
+        Animated.parallel([
+          Animated.timing(slideAnim, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          })
+        ]).start();
+      });
     } else {
       // Reset animations and stop any playing audio
       slideAnim.setValue(screenHeight);
@@ -87,9 +92,15 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
       setCurrentQuestionIndex(-1);
       setSurveyData(null);
       setServerConnected(false);
+      setChatVisible(false);
+      setSurveyCompleted(false);
       if (currentAudio) {
         currentAudio.pause();
         setCurrentAudio(null);
+      }
+      if (completionAudio) {
+        completionAudio.pause();
+        setCompletionAudio(null);
       }
     }
   }, [visible]);
@@ -103,12 +114,20 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
     }
   }, [messages]);
 
+  // Add greeting message when survey data and server connection are ready
+  useEffect(() => {
+    if (surveyData && serverConnected && messages.length === 0 && !isLoading) {
+      console.log('🎯 Adding greeting message after server connection confirmed');
+      addMessage(surveyData.character.greeting, false, false);
+    }
+  }, [surveyData, serverConnected, messages.length, isLoading]);
+
   const getApiUrl = () => {
     if (Platform.OS === 'web') {
       return 'http://localhost:3000';
     }
     // For mobile, use your Mac's IP address so your phone can reach the server
-    return '10.234.135.130'; // <-- Replace with your actual Mac IP if different
+    return 'http://10.234.135.130:3000'; // <-- Replace with your actual Mac IP if different
   };
 
   const checkServerConnection = async () => {
@@ -116,10 +135,16 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
       const apiUrl = getApiUrl();
       console.log('🔍 Checking server connection:', apiUrl);
       
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
       const response = await fetch(`${apiUrl}/health`, {
         method: 'GET',
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/json' },
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
       
       if (response.ok) {
         const health = await response.json();
@@ -131,6 +156,9 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
       }
     } catch (error) {
       console.error('❌ Server connection failed:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.error('❌ Connection timed out after 10 seconds');
+      }
       setServerConnected(false);
     }
   };
@@ -141,6 +169,33 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
       
       const apiUrl = getApiUrl();
       console.log('🚀 Starting survey with API URL:', apiUrl);
+      
+      // Test server connection first and set the state
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
+        const healthResponse = await fetch(`${apiUrl}/health`, {
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (healthResponse.ok) {
+          const health = await healthResponse.json();
+          console.log('✅ Server health check passed:', health);
+          setServerConnected(true);
+        } else {
+          console.log('❌ Server health check failed');
+          setServerConnected(false);
+        }
+      } catch (error) {
+        console.error('❌ Server health check error:', error);
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.error('❌ Health check timed out after 10 seconds');
+        }
+        setServerConnected(false);
+      }
       
       // Call actual API
       const response = await fetch(`${apiUrl}/api/v1/survey/request`, {
@@ -169,7 +224,7 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
         questions: apiSurveyData.questions,
         character: {
           name: "Louis",
-          greeting: apiSurveyData.character.greeting
+          greeting: "Hey there! 👋 I'm Louis, your AI survey assistant! I'm here to ask you a few basic questions and I'd really love to get your honest answers. It's super quick and you'll earn some awesome coins! Are you ready to help me out?"
         },
         reward: {
           amount: apiSurveyData.reward.amount
@@ -178,14 +233,15 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
 
       setSurveyData(transformedData);
       
-      // Add greeting message after Louis travels
+      // Set loading to false - greeting will be added by useEffect
       setTimeout(() => {
-        addMessage(transformedData.character.greeting, false);
         setIsLoading(false);
-      }, 2500);
+      }, 500);
       
     } catch (error) {
       console.error('❌ Survey error:', error);
+      console.log('🔄 Falling back to mock data...');
+      
       // Fallback to mock data if API fails
       const mockSurveyData: SurveyData = {
         surveyId: `survey_${Date.now()}`,
@@ -205,7 +261,7 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
         ],
         character: {
           name: "Louis",
-          greeting: "Hey! To get more coins, all you have to do is answer a few questions honestly and carefully. Are you in?"
+          greeting: "Hey there! 👋 I'm Louis, your AI survey assistant! I'm here to ask you a few basic questions and I'd really love to get your honest answers. It's super quick and you'll earn some awesome coins! Are you ready to help me out?"
         },
         reward: {
           amount: 500
@@ -214,16 +270,35 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
 
       setSurveyData(mockSurveyData);
       
+      // Set loading to false - greeting will be added by useEffect
       setTimeout(() => {
-        addMessage(mockSurveyData.character.greeting, false);
         setIsLoading(false);
-      }, 2500);
+      }, 500);
     }
   };
 
-  const playAudio = async (text: string) => {
-    if (!audioEnabled || Platform.OS !== 'web' || !surveyData || !serverConnected) {
-      console.log('🔇 Audio skipped:', { audioEnabled, platform: Platform.OS, surveyData: !!surveyData, serverConnected });
+  const playAudio = async (text: string, isCompletion: boolean = false) => {
+    console.log('🔊 playAudio called with:', {
+      audioEnabled,
+      platform: Platform.OS,
+      surveyData: !!surveyData,
+      serverConnected,
+      isCompletion,
+      text: text.substring(0, 50) + '...'
+    });
+    
+    if (!audioEnabled) {
+      console.log('🔇 Audio disabled by user');
+      return;
+    }
+    
+    if (!surveyData) {
+      console.log('🔇 Audio skipped - no survey data');
+      return;
+    }
+    
+    if (!serverConnected) {
+      console.log('🔇 Audio skipped - server not connected');
       return;
     }
     
@@ -237,6 +312,13 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
       }
 
       const apiUrl = getApiUrl();
+      console.log('🌐 Using API URL:', apiUrl);
+
+      const requestBody = {
+        text: text,
+        surveyId: surveyData.surveyId
+      };
+      console.log('📤 Request body:', requestBody);
 
       const response = await fetch(`${apiUrl}/api/v1/survey/speak`, {
         method: 'POST',
@@ -244,30 +326,51 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify({
-          text: text,
-          surveyId: surveyData.surveyId
-        })
+        body: JSON.stringify(requestBody)
       });
       
+      console.log('📡 Response status:', response.status);
+      
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API error response:', errorText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const { audioUrl } = await response.json();
+      const responseData = await response.json();
+      console.log('📥 Response data:', responseData);
+      
+      const { audioUrl } = responseData;
       console.log('🎵 Audio URL received:', audioUrl);
       
       const audio = new Audio(audioUrl);
-      setCurrentAudio(audio);
       
-      audio.onended = () => {
-        console.log('🎵 Audio playback ended');
-        setCurrentAudio(null);
-      };
+      // Set audio properties for better compatibility
+      audio.preload = 'auto';
+      audio.volume = 1.0;
+      
+      if (isCompletion) {
+        setCompletionAudio(audio);
+        audio.onended = () => {
+          console.log('🎵 Completion audio finished, closing chat');
+          setCompletionAudio(null);
+          onComplete(500);
+        };
+      } else {
+        setCurrentAudio(audio);
+        audio.onended = () => {
+          console.log('🎵 Audio playback ended');
+          setCurrentAudio(null);
+        };
+      }
       
       audio.onerror = (e) => {
         console.error('❌ Audio playback error:', e);
-        setCurrentAudio(null);
+        if (isCompletion) {
+          setCompletionAudio(null);
+        } else {
+          setCurrentAudio(null);
+        }
       };
       
       audio.onloadstart = () => {
@@ -278,15 +381,35 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
         console.log('🎵 Audio can play');
       };
       
-      await audio.play();
-      console.log('🎵 Audio playback started');
+      audio.onload = () => {
+        console.log('🎵 Audio loaded successfully');
+      };
+      
+      // Try to play with error handling for autoplay policy
+      try {
+        await audio.play();
+        console.log('🎵 Audio playback started');
+      } catch (playError) {
+        console.error('❌ Audio play failed (autoplay policy?):', playError);
+        // Try to play on next user interaction
+        const playOnInteraction = async () => {
+          try {
+            await audio.play();
+            console.log('🎵 Audio playback started on user interaction');
+            document.removeEventListener('click', playOnInteraction);
+          } catch (e) {
+            console.error('❌ Audio play failed even on interaction:', e);
+          }
+        };
+        document.addEventListener('click', playOnInteraction);
+      }
       
     } catch (error) {
       console.error('❌ Audio playback error:', error);
     }
   };
 
-  const addMessage = (text: string, isUser: boolean) => {
+  const addMessage = (text: string, isUser: boolean, isCompletion: boolean = false) => {
     const newMessage = {
       id: `msg_${Date.now()}_${Math.random()}`,
       text,
@@ -297,13 +420,13 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
     
     // Play audio for Louis's messages
     if (!isUser && audioEnabled) {
-      setTimeout(() => playAudio(text), 500);
+      setTimeout(() => playAudio(text, isCompletion), 500);
     }
   };
 
   const handleOptionSelect = async (option: string) => {
     // Add user's response
-    addMessage(option, true);
+    addMessage(option, true, false);
     
     setIsLoading(true);
     
@@ -314,10 +437,10 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
         if (option.toLowerCase().includes('yes') || option === "Yes, let's do it!") {
           setCurrentQuestionIndex(0);
           if (surveyData?.questions[0]) {
-            addMessage(surveyData.questions[0].text, false);
+            addMessage(surveyData.questions[0].text, false, false);
           }
         } else {
-          addMessage("No worries! Maybe next time. You can always come back for coins later! 😊", false);
+          addMessage("No worries! Maybe next time. You can always come back for coins later! 😊", false, false);
           setTimeout(() => onClose(), 3000);
         }
       } else {
@@ -348,14 +471,12 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
           
           if (result.completed) {
             // Survey complete
-            addMessage(result.message, false);
-            setTimeout(() => {
-              onComplete(result.reward.amount);
-            }, 3000);
+            setSurveyCompleted(true);
+            addMessage("Perfect! Thanks for answering my questions. Here are your 500 coins! 🎉", false, true);
           } else {
             // Next question
             setCurrentQuestionIndex(result.nextQuestion.index);
-            addMessage(result.nextQuestion.text, false);
+            addMessage(result.nextQuestion.text, false, false);
           }
         } catch (error) {
           console.error('❌ Answer submission error:', error);
@@ -364,12 +485,10 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
           
           if (nextIndex < (surveyData?.questions.length || 0)) {
             setCurrentQuestionIndex(nextIndex);
-            addMessage(surveyData!.questions[nextIndex].text, false);
+            addMessage(surveyData!.questions[nextIndex].text, false, false);
           } else {
-            addMessage("Perfect! Thanks for answering my questions. Here are your 500 coins! 🎉", false);
-            setTimeout(() => {
-              onComplete(500);
-            }, 3000);
+            setSurveyCompleted(true);
+            addMessage("Perfect! Thanks for answering my questions. Here are your 500 coins! 🎉", false, true);
           }
         }
       }
@@ -378,13 +497,12 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
   };
 
   const getCurrentOptions = () => {
-    if (currentQuestionIndex === -1) {
-      return ["Yes, let's do it!", "Maybe later"];
+    if (surveyCompleted) {
+      return [];
     }
     
-    // Hide options after the third question (index 2)
-    if (currentQuestionIndex >= 3) {
-      return [];
+    if (currentQuestionIndex === -1) {
+      return ["Yes, let's do it!", "Maybe later"];
     }
     
     return surveyData?.questions[currentQuestionIndex]?.options || [];
@@ -403,12 +521,12 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
 
     const translateX = louisTravelAnim.interpolate({
       inputRange: [0, 1],
-      outputRange: [louisPosition.x, 40],
+      outputRange: [louisPosition.x, 120],
     });
 
     const translateY = louisTravelAnim.interpolate({
       inputRange: [0, 1],
-      outputRange: [louisPosition.y, 0],
+      outputRange: [louisPosition.y, 20],
     });
 
     return (
@@ -503,119 +621,121 @@ export default function SurveyChat({ visible, onClose, onComplete, louisPosition
   return (
     <Modal visible={visible} transparent animationType="none">
       <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
-        <Animated.View 
-          style={[
-            styles.chatContainer,
-            {
-              transform: [{ translateY: slideAnim }],
-            }
-          ]}
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <View style={styles.headerIcon}>
-                <MessageCircle size={22} color="#FF385C" />
-              </View>
-              <View>
-                <Text style={styles.headerTitle}>Chat with Louis</Text>
-                <Text style={styles.headerSubtitle}>
-                  Survey Assistant {serverConnected ? '🟢' : '🔴'}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.headerRight}>
-              <TouchableOpacity 
-                style={[styles.audioToggle, audioEnabled && styles.audioToggleActive]} 
-                onPress={toggleAudio}
-              >
-                {audioEnabled ? (
-                  <Volume2 size={18} color={audioEnabled ? "#FF385C" : "#999"} />
-                ) : (
-                  <VolumeX size={18} color="#999" />
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                <X size={20} color="#717171" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Chat Messages */}
-          <ScrollView 
-            ref={scrollViewRef}
-            style={styles.messagesContainer} 
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.messagesContent}
+        {chatVisible && (
+          <Animated.View 
+            style={[
+              styles.chatContainer,
+              {
+                transform: [{ translateY: slideAnim }],
+              }
+            ]}
           >
-            {messages.map((message) => (
-              <View
-                key={message.id}
-                style={[
-                  styles.messageRow,
-                  message.isUser ? styles.userMessageRow : styles.louisMessageRow
-                ]}
-              >
-                {!message.isUser && (
+            {/* Background texture overlay */}
+            <View style={styles.textureOverlay} />
+            
+            {/* Header */}
+            <View style={styles.header}>
+              <View style={styles.headerLeft}>
+                <View>
+                  <Text style={styles.headerTitle}>Chat with Louis</Text>
+                  <Text style={styles.headerSubtitle}>
+                    Survey Assistant {serverConnected ? '🟢 Connected' : '🔴 Offline'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.headerRight}>
+                <TouchableOpacity 
+                  style={[styles.audioToggle, audioEnabled && styles.audioToggleActive]} 
+                  onPress={toggleAudio}
+                >
+                  {audioEnabled ? (
+                    <Volume2 size={18} color={audioEnabled ? "#FF385C" : "#999"} />
+                  ) : (
+                    <VolumeX size={18} color="#999" />
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                  <X size={20} color="#717171" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Chat Messages */}
+            <ScrollView 
+              ref={scrollViewRef}
+              style={styles.messagesContainer} 
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.messagesContent}
+            >
+              {messages.map((message) => (
+                <View
+                  key={message.id}
+                  style={[
+                    styles.messageRow,
+                    message.isUser ? styles.userMessageRow : styles.louisMessageRow
+                  ]}
+                >
+                  {!message.isUser && (
+                    <View style={styles.louisAvatar}>
+                      <Text style={styles.avatarText}>L</Text>
+                    </View>
+                  )}
+                  <View
+                    style={[
+                      styles.messageBubble,
+                      message.isUser ? styles.userBubble : styles.louisBubble
+                    ]}
+                  >
+                    <Text style={[
+                      styles.messageText,
+                      message.isUser ? styles.userMessageText : styles.louisMessageText
+                    ]}>
+                      {message.text}
+                    </Text>
+                  </View>
+                  {message.isUser && (
+                    <View style={styles.userAvatar}>
+                      <Text style={styles.userAvatarText}>You</Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+              
+              {isLoading && (
+                <View style={styles.messageRow}>
                   <View style={styles.louisAvatar}>
                     <Text style={styles.avatarText}>L</Text>
                   </View>
-                )}
-                <View
-                  style={[
-                    styles.messageBubble,
-                    message.isUser ? styles.userBubble : styles.louisBubble
-                  ]}
-                >
-                  <Text style={[
-                    styles.messageText,
-                    message.isUser ? styles.userMessageText : styles.louisMessageText
-                  ]}>
-                    {message.text}
-                  </Text>
-                </View>
-                {message.isUser && (
-                  <View style={styles.userAvatar}>
-                    <Text style={styles.userAvatarText}>You</Text>
+                  <View style={styles.typingIndicator}>
+                    <View style={styles.typingDots}>
+                      <View style={styles.typingDot} />
+                      <View style={styles.typingDot} />
+                      <View style={styles.typingDot} />
+                    </View>
+                    <Text style={styles.typingText}>Louis is typing...</Text>
                   </View>
-                )}
-              </View>
-            ))}
-            
-            {isLoading && (
-              <View style={styles.messageRow}>
-                <View style={styles.louisAvatar}>
-                  <Text style={styles.avatarText}>L</Text>
                 </View>
-                <View style={styles.typingIndicator}>
-                  <View style={styles.typingDots}>
-                    <View style={styles.typingDot} />
-                    <View style={styles.typingDot} />
-                    <View style={styles.typingDot} />
-                  </View>
-                  <Text style={styles.typingText}>Louis is typing...</Text>
-                </View>
+              )}
+            </ScrollView>
+
+            {/* Options */}
+            {!isLoading && messages.length > 0 && getCurrentOptions().length > 0 && (
+              <View style={styles.optionsContainer}>
+                <Text style={styles.optionsTitle}>Choose your answer:</Text>
+                {getCurrentOptions().map((option, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.optionButton}
+                    onPress={() => handleOptionSelect(option)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.optionText}>{option}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             )}
-          </ScrollView>
-
-          {/* Options */}
-          {!isLoading && messages.length > 0 && getCurrentOptions().length > 0 && (
-            <View style={styles.optionsContainer}>
-              <Text style={styles.optionsTitle}>Choose your answer:</Text>
-              {getCurrentOptions().map((option, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.optionButton}
-                  onPress={() => handleOptionSelect(option)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.optionText}>{option}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </Animated.View>
+          </Animated.View>
+        )}
       </Animated.View>
       
       {/* Louis Character Animation */}
@@ -650,22 +770,13 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#F5F5F5',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  headerIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFF0F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
   },
   headerTitle: {
     fontSize: 18,
@@ -707,6 +818,7 @@ const styles = StyleSheet.create({
   },
   messagesContainer: {
     flex: 1,
+    backgroundColor: '#F8F8F8',
   },
   messagesContent: {
     paddingHorizontal: 24,
@@ -846,7 +958,7 @@ const styles = StyleSheet.create({
   },
   louisCharacter: {
     position: 'absolute',
-    top: 100,
+    top: 120,
     left: 0,
     zIndex: 1000,
   },
@@ -861,5 +973,15 @@ const styles = StyleSheet.create({
     height: 8,
     borderWidth: 0.5,
     borderColor: 'rgba(0, 0, 0, 0.2)',
+  },
+  textureOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(248, 248, 248, 0.5)',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
 });
